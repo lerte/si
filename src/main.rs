@@ -1,42 +1,59 @@
-use std::env;
-use std::io::Write;
-use std::time::{SystemTime};
+extern crate si;
 
+use si::interpreter::Interpreter;
+use std::{
+    env, fs,
+    io::{self, Write},
+};
 
-fn prompt(name:&str) -> String {
-  let mut line = String::new();
-  print!("{}", name);
-  std::io::stdout().flush().unwrap();
-  std::io::stdin().read_line(&mut line).expect("Error: Could not read a line");
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    match args.len() {
+        1 => repl(),
+        2 => run_file(args.get(1).unwrap()),
+        _ => panic!("Too many arguments passed: {:?}", args),
+    }
+}
 
-  return line.trim().to_string()
+fn run_file(path: &str) {
+    println!("Running script at {}", path);
+    let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
+    run_source(&contents);
+}
+
+fn run_source(raw_source: &str) {
+    let mut interpreter = Interpreter::new(io::stdout());
+    interpreter.interpret(raw_source);
 }
 
 fn repl() {
-  loop {
-    let input = prompt("-> ");
-    if input == "@now" {
-      let unixtime = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-      print!("Current Unix time is {:?}\n", unixtime);
-    } 
-    else if input == "@exit" { 
-      std::process::exit(0);
-    };
-  }
-}
- 
-fn main() {
-  let args: Vec<String> = env::args().collect();
-  if args.len() == 1 {
-    repl()
-  }
-  match args[1].as_str() {
-    "version" => {
-      let version = env!("CARGO_PKG_VERSION");
-      println!("si version {}", &version);
+    let stdin = io::stdin();
+    let mut interpreter = Interpreter::new(io::stdout());
+
+    loop {
+        print!("-> ");
+        io::stdout().flush().expect("Failed flushing to stdout");
+
+        let mut source = String::new();
+
+        loop {
+            let mut input = String::new();
+            match stdin.read_line(&mut input) {
+                Ok(_) => {
+                    input = input.to_string();
+                    if input.trim().is_empty() {
+                        break;
+                    } else {
+                        source.push_str(&input.trim_end());
+                    }
+                }
+                Err(error) => {
+                    println!("error: {}", error);
+                    break;
+                }
+            }
+        }
+
+        interpreter.interpret(&source);
     }
-    _ => {
-      return;
-    }
-  }
 }
